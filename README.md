@@ -13,7 +13,7 @@ Java 17, PostgreSQL, Solr 9, Tomcat 10.1, Node 20, Angular UI, Nginx, firewall.
 Option 1: clone karke
 ```bash
 git clone https://github.com/libraryrhsgc/Dspace-install.git
-cd <REPO>
+cd Dspace-install
 sudo bash install-dspace.sh
 ```
 
