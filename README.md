@@ -12,14 +12,14 @@ Java 17, PostgreSQL, Solr 9, Tomcat 10.1, Node 20, Angular UI, Nginx, firewall.
 
 Option 1: clone karke
 ```bash
-git clone https://github.com/<USERNAME>/<REPO>.git
+git clone https://github.com/libraryrhsgc/Dspace-install.git
 cd <REPO>
 sudo bash install-dspace.sh
 ```
 
 Option 2: seedha one-liner
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<USERNAME>/<REPO>/main/install-dspace.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/libraryrhsgc/Dspace-install/main/install-dspace.sh | sudo bash
 ```
 
 Script install ke time khud puchhegi:
