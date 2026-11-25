@@ -168,10 +168,14 @@ sudo -u postgres psql -p "$PG_PORT" -d "$DB_NAME" -c "CREATE EXTENSION IF NOT EX
 
 # ---------------------------------------------------------------- 7. Solr
 log "7/13 Solr ${SOLR_VERSION} - port ${SOLR_PORT}, localhost only"
-if [[ ! -f /etc/systemd/system/solr.service ]]; then
+if [[ ! -d /opt/solr && ! -f /etc/systemd/system/solr.service && ! -f /etc/init.d/solr ]]; then
   rm -rf /tmp/solr-install && mkdir -p /tmp/solr-install && cd /tmp/solr-install
-  # file ka naam solr-VERSION.tgz hi hona chahiye, installer isi se version nikalta hai
-  wget --tries=3 "https://archive.apache.org/dist/solr/solr/${SOLR_VERSION}/solr-${SOLR_VERSION}.tgz"
+  # Solr badi file hai aur archive.apache.org dheere chalta hai.
+  # /var/tmp me cache rakhte hain, aur wget -c se adhoori download wahin se aage badhti hai.
+  SOLR_TGZ="/var/tmp/solr-${SOLR_VERSION}.tgz"
+  wget -c --tries=5 --progress=dot:giga "https://archive.apache.org/dist/solr/solr/${SOLR_VERSION}/solr-${SOLR_VERSION}.tgz" -O "$SOLR_TGZ"
+  # installer ko file ka naam solr-VERSION.tgz hi chahiye
+  cp "$SOLR_TGZ" "/tmp/solr-install/solr-${SOLR_VERSION}.tgz"
   tar xzf "solr-${SOLR_VERSION}.tgz" "solr-${SOLR_VERSION}/bin/install_solr_service.sh" --strip-components=2
   bash ./install_solr_service.sh "solr-${SOLR_VERSION}.tgz" -p "$SOLR_PORT" -n
   cd /tmp
@@ -239,7 +243,11 @@ EOF
 chown -R "$DSPACE_USER":"$DSPACE_USER" "$SRC_DIR"
 
 log "10/13 Backend build - Maven + Ant - 10-20 min lag sakte hain"
-sudo -u "$DSPACE_USER" env JAVA_HOME="$JAVA_HOME_DIR" bash -c "
+# Maven/Ant ko kaafi heap do, warna "Java heap space" error aata hai (war banate waqt)
+MEM_NOW=$(free -m | awk '/Mem:/{print $2}')
+MVN_HEAP=$(( MEM_NOW * 6 / 10 )); [[ $MVN_HEAP -lt 2048 ]] && MVN_HEAP=2048; [[ $MVN_HEAP -gt 4096 ]] && MVN_HEAP=4096
+echo "Maven heap: ${MVN_HEAP}m (RAM ${MEM_NOW}m)"
+sudo -u "$DSPACE_USER" env JAVA_HOME="$JAVA_HOME_DIR" MAVEN_OPTS="-Xmx${MVN_HEAP}m" ANT_OPTS="-Xmx${MVN_HEAP}m" bash -c "
   cd '$SRC_DIR' && mvn -U clean package -DskipTests &&
   cd dspace/target/dspace-installer && ant fresh_install"
 
