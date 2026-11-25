@@ -294,8 +294,13 @@ EOF
 chown -R "$DSPACE_USER":"$DSPACE_USER" "$UI_DIR"
 sudo -u "$DSPACE_USER" bash -c "
   cd '$UI_DIR' &&
-  export NODE_OPTIONS=--max-old-space-size=4096 &&
-  yarn install --frozen-lockfile &&
+  export NODE_OPTIONS='--max-old-space-size=4096 --dns-result-order=ipv4first' &&
+  yarn config set registry https://registry.npmjs.org &&
+  for i in 1 2 3 4 5; do
+    yarn install --frozen-lockfile --network-timeout 600000 --network-concurrency 4 && break
+    echo \"yarn install fail hua, dobara try (\$i/5)...\"; sleep 20
+    [ \$i -eq 5 ] && exit 1
+  done &&
   yarn build:prod"
 
 cat > /etc/systemd/system/dspace-ui.service <<EOF
