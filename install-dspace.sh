@@ -247,9 +247,13 @@ log "10/13 Backend build - Maven + Ant - 10-20 min lag sakte hain"
 MEM_NOW=$(free -m | awk '/Mem:/{print $2}')
 MVN_HEAP=$(( MEM_NOW * 6 / 10 )); [[ $MVN_HEAP -lt 2048 ]] && MVN_HEAP=2048; [[ $MVN_HEAP -gt 4096 ]] && MVN_HEAP=4096
 echo "Maven heap: ${MVN_HEAP}m (RAM ${MEM_NOW}m)"
-sudo -u "$DSPACE_USER" env JAVA_HOME="$JAVA_HOME_DIR" MAVEN_OPTS="-Xmx${MVN_HEAP}m" ANT_OPTS="-Xmx${MVN_HEAP}m" bash -c "
-  cd '$SRC_DIR' && mvn -U clean package -DskipTests &&
-  cd dspace/target/dspace-installer && ant fresh_install"
+if [[ -x "$DSPACE_DIR/bin/dspace" && -d "$DSPACE_DIR/webapps/server" ]]; then
+  echo "Backend pehle se bana hua hai, build skip."
+else
+  sudo -u "$DSPACE_USER" env JAVA_HOME="$JAVA_HOME_DIR" MAVEN_OPTS="-Xmx${MVN_HEAP}m" ANT_OPTS="-Xmx${MVN_HEAP}m" bash -c "
+    cd '$SRC_DIR' && mvn -U clean package -DskipTests &&
+    cd dspace/target/dspace-installer && ant fresh_install"
+fi
 
 # Solr cores copy karke Solr start
 cp -r "$DSPACE_DIR"/solr/* /var/solr/data/
@@ -292,16 +296,26 @@ rest:
   ssrBaseUrl: http://localhost:${TOMCAT_PORT}/server
 EOF
 chown -R "$DSPACE_USER":"$DSPACE_USER" "$UI_DIR"
-sudo -u "$DSPACE_USER" bash -c "
-  cd '$UI_DIR' &&
-  export NODE_OPTIONS='--max-old-space-size=4096 --dns-result-order=ipv4first' &&
-  yarn config set registry https://registry.npmjs.org &&
-  for i in 1 2 3 4 5; do
-    yarn install --frozen-lockfile --network-timeout 600000 --network-concurrency 4 && break
-    echo \"yarn install fail hua, dobara try (\$i/5)...\"; sleep 20
-    [ \$i -eq 5 ] && exit 1
-  done &&
-  yarn build:prod"
+if [[ -f "$UI_DIR/dist/server/main.js" ]]; then
+  echo "Frontend pehle se bana hua hai, build skip."
+else
+  sudo -u "$DSPACE_USER" bash -c "
+    cd '$UI_DIR' &&
+    export NODE_OPTIONS='--max-old-space-size=4096 --dns-result-order=ipv4first' &&
+    yarn config set registry https://registry.npmjs.org &&
+    for i in 1 2 3 4 5; do
+      yarn install --frozen-lockfile --network-timeout 600000 --network-concurrency 4 && break
+      echo \"yarn install fail hua, dobara try (\$i/5)...\"; sleep 20
+      [ \$i -eq 5 ] && exit 1
+    done &&
+    if [ ! -f node_modules/@popperjs/core/package.json ]; then
+      echo '@popperjs/core missing, manually install kar rahe hain...' &&
+      PKG=\$(cd /tmp && npm pack @popperjs/core@2.11.8 --silent) &&
+      mkdir -p node_modules/@popperjs/core &&
+      tar xzf /tmp/\$PKG -C node_modules/@popperjs/core --strip-components=1;
+    fi &&
+    yarn build:prod"
+fi
 
 cat > /etc/systemd/system/dspace-ui.service <<EOF
 [Unit]
